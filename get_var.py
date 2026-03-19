@@ -1,4 +1,4 @@
-#!/bin/python3
+#!/usr/bin/env python3
 
 A = 13
 B = 30103
