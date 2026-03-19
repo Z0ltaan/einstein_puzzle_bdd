@@ -173,7 +173,6 @@ std::istream &course::operator>>(std::istream &in, course::constraint3 &lhs) {
   in >> delim{'{'} >> tmp.side >> delim{','} >> tmp.lhs >> delim{','} >>
       tmp.rhs >> delim{'}'};
 
-  // if (!(tmp.side == 'd' || tmp.side == 'u')) {
   if (tmp.side.is_undefined()) {
     in.setstate(std::ios::badbit);
   }

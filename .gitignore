@@ -4,3 +4,4 @@ BuDDy/
 cmake-build-debug/
 compile_commands.json
 imgui.ini
+.*/
