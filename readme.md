@@ -28,7 +28,9 @@ Variant parameters: v1 = 17, v2 = 1, v3 = 2, where v1 — specifies neighbor rel
 
 1. v1 = 17 specifies the following neighbor relations:
 
+
 | @ | | |
+|---|---|---|
 | | O | |
 | @ | | |
 
@@ -38,7 +40,7 @@ Variant parameters: v1 = 17, v2 = 1, v3 = 2, where v1 — specifies neighbor rel
 
 ## Requirements
 
-    1. CMake (>=3.22)
+    1. CMake (*=3.22)
     2. C++ compiler
 
 ## Build
@@ -46,7 +48,7 @@ Variant parameters: v1 = 17, v2 = 1, v3 = 2, where v1 — specifies neighbor rel
 To build the program you can use the following example:
 
 ```bash
-git clone <this_repo_link> &&
+git clone *this_repo_link* &&
 cd einstein_puzzle_bdd &&
 cd BuDDy &&
 unzip buddy.zip &&
@@ -68,22 +70,22 @@ There are two examples of constraints file. One is for non-split (no gluing) sce
 
 ### Constraint 1
 
-Constraint format is c1{<prop>, <obj>, <value>}, indexes start w 0
+Constraint format is c1{*prop*, *obj*, *value*}, indexes start w 0
 Example: c1{0, 0, 0}
 
 ### Constraint 2
 
-Constraint format is c2{{<prop1>, <val1>}, {<prop2>, <val2>}}, indexes start w 0
+Constraint format is c2{{*prop1*, *val1*}, {*prop2*, *val2*}}, indexes start w 0
 Example: c2{{2, 1}, {3, 1}}
 
 ### Constraint 3
 
-Constraint format is c3{<side>, {<prop1>, <val1>}, {<prop2>, <val2>}}, indexes start w 0
+Constraint format is c3{*side*, {*prop1*, *val1*}, {*prop2*, *val2*}}, indexes start w 0
 Example: c3{u, {3, 8}, {0, 4}}
 
 ### Constraint 4
 
-Constraint format is c4{<c3_1>, <c3_2>}, indexes start w 0
+Constraint format is c4{*c3_1*, *c3_2*}, indexes start w 0
 Example: c4{{u, {2, 4}, {2, 0}}, {d, {2, 4}, {2, 0}}}
 
 ## Usage example
