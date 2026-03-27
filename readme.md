@@ -28,11 +28,10 @@ Variant parameters: v1 = 17, v2 = 1, v3 = 2, where v1 — specifies neighbor rel
 
 1. v1 = 17 specifies the following neighbor relations:
 
-
-| @ | | |
-|---|---|---|
-| | O | |
-| @ | | |
+| @   |     |     |
+| --- | --- | --- |
+|     | O   |     |
+| @   |     |     |
 
 2. v2 = 1 specifies gluing along the left-right borders 3. v3 = 2 specifies n1 = 7 constraints of the first type, n2 = 4 constraints of the second type, n3 = 2 of the third type, n4 = 6 of the fourth type
 
@@ -50,8 +49,7 @@ To build the program you can use the following example:
 
 ```bash
 git clone *this_repo_link* &&
-cd einstein_puzzle_bdd &&
-cd BuDDy &&
+cd einstein_puzzle_bdd/BuDDy &&
 unzip buddy.zip &&
 cd .. &&
 cmake -B build &&
@@ -63,7 +61,7 @@ There will be an executable named _matlog_ as it says in CMakeLists.txt
 
 # Usage
 
-The program requires a file with puzzle constraints (constraints.ini). File must be placed in the same directory as the project.
+The program requires a file with puzzle constraints (constraints.ini). File must be placed in the same directory as the binary in case you're not providing path to directory via command line option.
 
 There are two examples of constraints file. One is for non-split (no gluing) scenario and the other is for split scenario.
 
@@ -71,7 +69,7 @@ There are two examples of constraints file. One is for non-split (no gluing) sce
 
 ### Constraint 1
 
-Constraint format is c1{*prop*, *obj*, *value*}, indexes start w 0.
+Constraint format is c1{_prop_, _obj_, _value_}, indexes start w 0.
 Example: c1{0, 0, 0}
 
 ### Constraint 2
@@ -81,12 +79,12 @@ Example: c2{{2, 1}, {3, 1}}
 
 ### Constraint 3
 
-Constraint format is c3{*side*, {*prop1*, *val1*}, {*prop2*, *val2*}}, indexes start w 0.
+Constraint format is c3{_side_, {_prop1_, _val1_}, {_prop2_, _val2_}}, indexes start w 0.
 Example: c3{u, {3, 8}, {0, 4}}
 
 ### Constraint 4
 
-Constraint format is c4{*c3_1*, *c3_2*}, indexes start w 0.
+Constraint format is c4{_c3_1_, _c3_2_}, indexes start w 0.
 Example: c4{{u, {2, 4}, {2, 0}}, {d, {2, 4}, {2, 0}}}
 
 ## Usage example
@@ -102,7 +100,11 @@ From project's root directory:
 2. With split:
 
 ```bash
-SPLIT="" ./build/matlog
+./build/matlog --split
 ```
 
 If ini file is written correctly then the program will calculate every solution that is possible with current constraints and will write them in separate file.
+
+```bash
+./build/matlog --help # for command line options
+```

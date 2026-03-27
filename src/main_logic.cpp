@@ -310,7 +310,7 @@ int course::main_logic(int argc, char **argv) {
                 std::istream_iterator<general_constraint>{},
                 std::back_insert_iterator{constraints});
 
-      if (!in.eof() && in.fail()) {
+      if (!in.eof() && !in) {
         throw std::runtime_error("bad config data");
       }
     }
