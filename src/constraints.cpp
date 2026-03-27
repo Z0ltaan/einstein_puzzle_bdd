@@ -36,7 +36,7 @@ std::istream &course::operator>>(std::istream &in, constraint_bind &rhs) {
 
   constraint_bind tmp(id);
   if (tmp.is_undefined()) {
-    in.setstate(std::ios::badbit);
+    in.setstate(std::ios::failbit);
   } else {
     rhs = tmp;
   }
@@ -72,11 +72,11 @@ std::istream &course::operator>>(std::istream &in, general_constraint &rhs) {
     try {
       tmp = std::invoke(factory.at(next_symbol));
     } catch (const std::out_of_range &e) {
-      in.setstate(std::ios::badbit);
+      in.setstate(std::ios::failbit);
     }
 
   } else {
-    in.setstate(std::ios::badbit);
+    in.setstate(std::ios::failbit);
   }
 
   std::visit([&](auto &&var) { in >> var; }, tmp);
@@ -103,7 +103,7 @@ std::istream &course::detail::operator>>(std::istream &in,
   char c{};
   in >> c;
   if (rhs.expected != c) {
-    in.setstate(std::ios::badbit);
+    in.setstate(std::ios::failbit);
   }
 
   return in;
@@ -174,7 +174,7 @@ std::istream &course::operator>>(std::istream &in, course::constraint3 &lhs) {
       tmp.rhs >> delim{'}'};
 
   if (tmp.side.is_undefined()) {
-    in.setstate(std::ios::badbit);
+    in.setstate(std::ios::failbit);
   }
 
   if (in) {

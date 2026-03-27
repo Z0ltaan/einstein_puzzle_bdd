@@ -1,5 +1,7 @@
 #include "main_logic.hpp"
+#include "cli.hpp"
 #include "constraints.hpp"
+#include "props_array.hpp"
 #include <algorithm>
 #include <bdd.h>
 #include <cassert>
@@ -11,34 +13,124 @@
 #include <functional>
 #include <iterator>
 #include <ostream>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
-static constexpr int N = 9; // число объектов;
-static constexpr int M = 4; // число свойств
-static constexpr size_t nodenum = 1000000;
-static constexpr size_t cache_size = 10000;
+static course::config config{false, 9, 4, 1000000, 10000, ""};
 
-static const int LOG_N = std::ceil(std::log2(N));
-static const int N_VAR = N * M * LOG_N; // число булевых переменных
-static std::vector<char> var(N_VAR);
+class solution_writer {
+public:
+  solution_writer() = delete;
+  solution_writer(const solution_writer &rhs) = delete;
+  solution_writer(solution_writer &&rhs) = delete;
+  solution_writer &operator=(const solution_writer &rhs) = delete;
+  solution_writer &operator=(solution_writer &&rhs) = delete;
 
-using props_array = course::props_array_t<bdd, N, M>;
+  solution_writer(const std::string &output_path, size_t object_count,
+                  size_t properties_count)
+      : object_count_(object_count), properties_count_(properties_count),
+        var_(object_count * properties_count *
+             std::ceil(std::log2(object_count))),
+        out_(output_path) {
 
-static void fun(char *varset, int size);
-static std::ofstream out;
+    out_.open(output_path);
+    if (!out_.is_open()) {
+      std::string error_message_template("cant open output file: ");
+      throw std::runtime_error(error_message_template.append(output_path));
+    }
+  }
+
+  double write_solutions(bdd &puzzle_to_solve) {
+    double satcount = bdd_satcount(puzzle_to_solve);
+    if (satcount != 0 && satcount <= 10000) {
+      out_ << satcount << " solutions:\n";
+      solution_writer::current_instance_ = this;
+      bdd_allsat(puzzle_to_solve, static_callback_writer);
+    }
+    return satcount;
+  }
+
+private:
+  size_t object_count_;
+  size_t properties_count_;
+  std::vector<char> var_;
+  std::ofstream out_;
+
+  inline static solution_writer *current_instance_ = nullptr;
+
+  static void static_callback_writer(char *varset, int size) {
+    if (solution_writer::current_instance_) {
+      solution_writer::current_instance_->build(varset, size);
+    }
+  }
+
+  void build(char *varset, unsigned total_bits) {
+    struct state_t {
+      size_t idx;
+      enum { NOT_VISITED, VISITED } step;
+    };
+
+    std::vector<state_t> stack;
+    stack.reserve(total_bits + 1);
+    stack.push_back({0, state_t::NOT_VISITED});
+
+    while (!stack.empty()) {
+      state_t &curr = stack.back();
+      unsigned i = curr.idx;
+
+      if (i == total_bits) {
+        print(out_);
+        stack.pop_back();
+        continue;
+      }
+
+      if (varset[i] >= 0) {
+        if (curr.step == 0) {
+          var_[i] = varset[i];
+          curr.step = state_t::VISITED;
+          stack.push_back({i + 1, state_t::NOT_VISITED});
+        } else {
+          stack.pop_back();
+        }
+      }
+    }
+  }
+
+  void print(std::ostream &out) {
+    size_t log = std::ceil(std::log2(object_count_));
+    const unsigned shift_base = 1;
+    for (unsigned i = 0; i < object_count_; i++) {
+      out << i << ": ";
+      for (unsigned j = 0; j < properties_count_; j++) {
+        unsigned J = (i * properties_count_ + j) * log;
+        unsigned object_value = 0;
+        for (unsigned k = 0; k < log; k++) {
+          if (var_[J + k]) {
+            object_value += shift_base << k;
+          }
+        }
+        out << object_value << " ";
+      }
+      out << '\n';
+    }
+    out << "\n\n";
+  }
+};
 
 static int var_index(int i, int k, int t) {
-  return i * M * LOG_N + k * LOG_N + t;
+  const int LOG_N = std::ceil(std::log2(::config.object_count));
+  return i * ::config.properties_count * LOG_N + k * LOG_N + t;
 }
 
 static bdd bdd_eql(const bdd &a, const bdd &b) { return (a & b) | (!a & !b); }
 
-static bdd evaluate_constraint(const props_array &props,
+static bdd evaluate_constraint(const course::props_array &props,
                                const course::constraint1 &c) {
   return props.at(c.prop).at(c.obj).at(c.value);
 }
 
-static bdd evaluate_constraint(const props_array &props,
+static bdd evaluate_constraint(const course::props_array &props,
                                const course::constraint2 &c) {
   bdd evaluated_constraint = bddtrue;
   auto upper_bound = props.front().size();
@@ -50,20 +142,19 @@ static bdd evaluate_constraint(const props_array &props,
   return evaluated_constraint;
 }
 
-static bdd evaluate_constraint(const props_array &props,
+static bdd evaluate_constraint(const course::props_array &props,
                                const course::constraint3 &c) {
-  static const char *split_allowed = std::getenv("SPLIT");
-
   const static std::map<
       course::constraint_bind::bind_direction,
-      std::function<bdd(const props_array &, const course::constraint3 &c,
-                        bool split_allowed)>>
+      std::function<bdd(const course::props_array &,
+                        const course::constraint3 &c, bool split_allowed)>>
       bind_evaluation = {
           {course::constraint_bind::bind_direction::UPPER_LEFT,
-           [](const props_array &props, const course::constraint3 &c,
+           [](const course::props_array &props, const course::constraint3 &c,
               bool split_allowed) -> bdd {
              bdd evaluated_constraint = bddtrue;
-             const size_t N_SQRT = static_cast<size_t>(std::sqrt(N));
+             const size_t N_SQRT =
+                 static_cast<size_t>(std::sqrt(::config.object_count));
              const auto upper_bound = props.front().size();
              for (size_t i = 0; i < upper_bound; ++i) {
                if (i / N_SQRT == 0 || (i % N_SQRT == 0 && !split_allowed)) {
@@ -82,10 +173,11 @@ static bdd evaluate_constraint(const props_array &props,
              return evaluated_constraint;
            }},
           {course::constraint_bind::bind_direction::LOWER_LEFT,
-           [](const props_array &props, const course::constraint3 &c,
+           [](const course::props_array &props, const course::constraint3 &c,
               bool split_allowed) -> bdd {
              bdd evaluated_constraint = bddtrue;
-             const size_t N_SQRT = static_cast<size_t>(std::sqrt(N));
+             const size_t N_SQRT =
+                 static_cast<size_t>(std::sqrt(::config.object_count));
              const auto upper_bound = props.front().size();
              for (size_t i = 0; i < upper_bound; ++i) {
                if (i / N_SQRT >= N_SQRT - 1 ||
@@ -108,61 +200,48 @@ static bdd evaluate_constraint(const props_array &props,
            }}};
 
   return std::invoke(bind_evaluation.at(c.side.direction), std::cref(props),
-                     std::cref(c), split_allowed);
+                     std::cref(c), ::config.split_allowed);
 }
 
-static bdd evaluate_constraint(const props_array &props,
+static bdd evaluate_constraint(const course::props_array &props,
                                const course::constraint4 &c) {
   return evaluate_constraint(props, c.first) |
          evaluate_constraint(props, c.second);
 }
 
-static std::filesystem::path get_program_dir(const char *program_path) {
-  std::filesystem::path p(program_path);
-  return p.parent_path();
+static void evaluate_lvl5_constraint(bdd &function,
+                                     const course::props_array &properties) {
+  for (int k = 0; k < ::config.properties_count; ++k) {
+    for (int j = 0; j < ::config.object_count; ++j) {
+      for (int i1 = 0; i1 < ::config.object_count; i1++) {
+        for (int i2 = i1 + 1; i2 < ::config.object_count; i2++) {
+          function &= bdd_imp(properties[k][i1][j], !properties[k][i2][j]);
+        }
+      }
+    }
+  }
 }
 
-int course::main_logic(int argc, char **argv) {
-  static_assert((N > 0 && M > 0) && (M < N), "check your N and M values");
-
-  {
-    auto N_SQRT = std::sqrt(N);
-    assert(N == N_SQRT * N_SQRT);
-  }
-
-  std::vector<general_constraint> constraints;
-  constraints.reserve(N + M);
-
-  std::filesystem::path program_dir = get_program_dir(argv[0]);
-
-  {
-    std::filesystem::path config = program_dir / "constraints.ini";
-    std::ifstream in(config);
-    if (!in.is_open()) {
-      std::cerr << "cant open a file: " << config.c_str() << "\n";
-      return -1;
-    }
-
-    std::copy(std::istream_iterator<general_constraint>{in},
-              std::istream_iterator<general_constraint>{},
-              std::back_insert_iterator{constraints});
-
-    if (in.bad()) {
-      std::cerr << "bad config data\n";
-      return -1;
+static void evaluate_lvl6_constraint(bdd &function,
+                                     const course::props_array &properties) {
+  for (int i = 0; i < ::config.object_count; ++i) {
+    for (int j = 0; j < ::config.properties_count; ++j) {
+      bdd tmp_false = bddfalse;
+      for (int k = 0; k < ::config.object_count; ++k) {
+        tmp_false |= properties[j][i][k];
+      }
+      function &= tmp_false;
     }
   }
+}
 
-  bdd_init(nodenum, cache_size);
-  bdd_setvarnum(N_VAR);
-
-  props_array properties;
+static void init_properties_array(course::props_array &properties) {
+  const size_t LOG_N = std::ceil(std::log2(::config.object_count));
 
   // NOTE: Set properties p(k, i, j)
-  // NOTE: this part of the code has been provided in task description
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < N; ++j) {
-      for (int k = 0; k < M; ++k) {
+  for (int i = 0; i < ::config.object_count; ++i) {
+    for (int j = 0; j < ::config.object_count; ++j) {
+      for (int k = 0; k < ::config.properties_count; ++k) {
         bdd &tmp = properties[k][i][j];
         tmp = bddtrue;
         for (int t = 0; t < LOG_N; ++t) {
@@ -172,120 +251,112 @@ int course::main_logic(int argc, char **argv) {
       }
     }
   }
+}
 
-  // NOTE: init the function
-  bdd puzzle_to_solve = bddtrue;
+static std::filesystem::path get_program_dir(const char *program_path) {
+  std::filesystem::path p(program_path);
+  return p.parent_path();
+}
 
-  // NOTE: evaluate constraints
-  {
-    auto evaluate_general_constraint = [&](const auto &item) {
-      puzzle_to_solve &= std::visit(
-          [&](auto &&rhs) -> bdd {
-            return evaluate_constraint(properties, rhs);
-          },
-          item);
-    };
+static bool is_square(size_t original_value, size_t square_root) {
+  return original_value == square_root * square_root;
+}
 
-    std::for_each(constraints.begin(), constraints.end(),
-                  evaluate_general_constraint);
-  }
+static bool ensure_correct_einstein_puzzle_parameters(size_t object_count,
+                                                      size_t properties_count) {
+  return (object_count > 0 && properties_count > 0) &&
+         (properties_count < object_count);
+}
 
-  // NOTE: lvl 5 constraints
-  for (int k = 0; k < M; ++k) {
-    for (int j = 0; j < N; ++j) {
-      for (int i1 = 0; i1 < N; i1++) {
-        for (int i2 = i1 + 1; i2 < N; i2++) {
-          puzzle_to_solve &=
-              bdd_imp(properties[k][i1][j], !properties[k][i2][j]);
-        }
+int course::main_logic(int argc, char **argv) {
+  try {
+    handle_command_line_args(argc, argv, ::config);
+
+    size_t object_count = ::config.object_count,
+           properties_count = ::config.properties_count;
+
+    if (not(is_square(object_count, std::sqrt(object_count)) &&
+            ensure_correct_einstein_puzzle_parameters(object_count,
+                                                      properties_count))) {
+      throw std::runtime_error(
+          "incorrect einstein puzzle parameters; object count should be "
+          "representable as a square, object_count > properties_count, both "
+          "are positive");
+    }
+
+    std::vector<general_constraint> constraints;
+    constraints.reserve(object_count + properties_count);
+
+    {
+      std::filesystem::path constraints_config_path = get_program_dir(argv[0]);
+
+      if (::config.constraint_config_path != "") {
+        constraints_config_path =
+            std::filesystem::path(::config.constraint_config_path).parent_path();
+      } else {
+        ::config.constraint_config_path = constraints_config_path;
+      }
+
+      std::filesystem::path constraint_file =
+          constraints_config_path / "constraints.ini";
+      std::ifstream in(constraint_file);
+      if (!in.is_open()) {
+        std::string error_message_template = "cant open a file: ";
+        throw std::runtime_error(
+            error_message_template.append(constraint_file));
+      }
+
+      std::copy(std::istream_iterator<general_constraint>{in},
+                std::istream_iterator<general_constraint>{},
+                std::back_insert_iterator{constraints});
+
+      if (!in.eof() && in.fail()) {
+        throw std::runtime_error("bad config data");
       }
     }
-  }
 
-  // NOTE: lvl 6 constraints
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < M; ++j) {
-      bdd tmp_false = bddfalse;
-      for (int k = 0; k < N; ++k) {
-        tmp_false |= properties[j][i][k];
-      }
-      puzzle_to_solve &= tmp_false;
+    bdd_init(::config.node_number, ::config.cache_size);
+    bdd_setvarnum(object_count * properties_count *
+                  std::ceil(std::log2(object_count)));
+
+    props_array properties =
+        course::create_sized_props_array(object_count, properties_count);
+    init_properties_array(properties);
+
+    bdd puzzle_to_solve = bddtrue;
+
+    // NOTE: evaluate constraints from file
+    {
+      auto evaluate_general_constraint = [&](const auto &item) {
+        puzzle_to_solve &= std::visit(
+            [&](auto &&rhs) -> bdd {
+              return evaluate_constraint(properties, rhs);
+            },
+            item);
+      };
+
+      std::for_each(constraints.begin(), constraints.end(),
+                    evaluate_general_constraint);
     }
-  }
 
-  double satcount = bdd_satcount(puzzle_to_solve);
+    evaluate_lvl5_constraint(puzzle_to_solve, properties);
+    evaluate_lvl6_constraint(puzzle_to_solve, properties);
 
-  std::cout << "If solution number is greater than 10000 or equal to 0 file "
-               "will not be created\n";
-  std::cout
-      << "To activate split functionality define SPLIT environment variable\n";
-  std::cout << "Solution count: " << satcount << '\n';
+    std::cout << "If solution number is greater than 10000 or equal to 0 file "
+                 "will not be created\n";
 
-  if (satcount != 0 && satcount <= 10000) {
-    std::filesystem::path output_file(program_dir / "out.txt");
-    out.open(output_file);
-    if (!out.is_open()) {
-      std::cerr << "cant open output file: " << output_file.c_str() << '\n';
-      return -1;
+    {
+      std::filesystem::path output_file(::config.constraint_config_path / "out.txt");
+      solution_writer output_writer(output_file, object_count,
+                                    properties_count);
+      double solutions_written = output_writer.write_solutions(puzzle_to_solve);
+      std::cout << "Solution count: " << solutions_written << '\n';
     }
-    out << satcount << " solutions:\n";
-    bdd_allsat(puzzle_to_solve, fun);
+
+    bdd_done();
+  } catch (const std::exception &e) {
+    std::cerr << e.what() << '\n';
+    return -1;
   }
-  bdd_done();
   return 0;
 }
-
-static void print(std::ostream &out) {
-  for (unsigned i = 0; i < N; i++) {
-    out << i << ": ";
-    for (unsigned j = 0; j < M; j++) {
-      unsigned J = (i * M + j) * LOG_N;
-      unsigned num = 0;
-      unsigned power_of_2 = 1;
-
-      for (unsigned k = 0; k < LOG_N; k++) {
-        if (var[J + k]) {
-          num += power_of_2;
-        }
-        power_of_2 *= 2;
-      }
-      out << num << " ";
-    }
-    out << '\n';
-  }
-  out << "\n\n";
-}
-
-static void build(char *varset, unsigned total_bits) {
-  struct State {
-    unsigned idx;
-    int step;
-  };
-
-  std::vector<State> stack;
-  stack.reserve(total_bits + 1);
-  stack.push_back({0, 0});
-
-  while (!stack.empty()) {
-    State &curr = stack.back();
-    unsigned i = curr.idx;
-
-    if (i == total_bits) {
-      print(out);
-      stack.pop_back();
-      continue;
-    }
-
-    if (varset[i] >= 0) {
-      if (curr.step == 0) {
-        var[i] = varset[i];
-        curr.step = 1; // NOTE: done with branch
-        stack.push_back({i + 1, 0});
-      } else {
-        stack.pop_back();
-      }
-    }
-  }
-}
-
-static void fun(char *varset, int size) { build(varset, size); }

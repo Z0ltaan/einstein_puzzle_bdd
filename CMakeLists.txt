@@ -6,13 +6,14 @@ file(GLOB_RECURSE source_files ${CMAKE_HOME_DIRECTORY}/src/*.cpp)
 
 add_executable(${PROJECT_NAME} ${source_files})
 
-add_subdirectory(${CMAKE_HOME_DIRECTORY}/BuDDy)
+add_subdirectory(${CMAKE_HOME_DIRECTORY}/external/BuDDy)
 target_link_libraries(${PROJECT_NAME} PUBLIC bdd)
-# target_link_libraries(${PROJECT_NAME} PUBLIC
-# ${CMAKE_HOME_DIRECTORY}/BuDDy/libbdd.a)
 
 target_include_directories(${PROJECT_NAME}
-                           PUBLIC ${CMAKE_HOME_DIRECTORY}/BuDDy/src)
+                           PUBLIC ${CMAKE_HOME_DIRECTORY}/external/BuDDy/src
+                           PUBLIC ${CMAKE_HOME_DIRECTORY}/external/cli11
+                         )
+
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
 if(CMAKE_EXPORT_COMPILE_COMMANDS)

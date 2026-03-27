@@ -1,7 +1,6 @@
 #ifndef CONSTRAINTS_HPP
 #define CONSTRAINTS_HPP
 
-#include <array>
 #include <iosfwd>
 #include <map>
 #include <utility>
@@ -62,7 +61,7 @@ using general_constraint =
     std::variant<course::constraint1, course::constraint2, course::constraint3,
                  course::constraint4>;
 
-std::istream & operator>>(std::istream & in, constraint_bind & rhs);
+std::istream &operator>>(std::istream &in, constraint_bind &rhs);
 std::istream &operator>>(std::istream &in, general_constraint &rhs);
 std::istream &operator>>(std::istream &in, obj_value &lhs);
 std::istream &operator>>(std::istream &in, constraint1 &lhs);
@@ -77,9 +76,6 @@ std::ostream &operator<<(std::ostream &out, const constraint2 &lhs);
 std::ostream &operator<<(std::ostream &out, const constraint3 &lhs);
 std::ostream &operator<<(std::ostream &out, const constraint4 &lhs);
 
-template <class bdd, size_t obj_count, size_t prop_count>
-using props_array_t =
-    std::array<std::array<std::array<bdd, obj_count>, obj_count>, prop_count>;
 
 } // namespace course
 
