@@ -49,9 +49,9 @@ To build the program you can use the following example:
 
 ```bash
 git clone *this_repo_link* &&
-cd einstein_puzzle_bdd/BuDDy &&
+cd einstein_puzzle_bdd/external/BuDDy &&
 unzip buddy.zip &&
-cd .. &&
+cd ../../ &&
 cmake -B build &&
 cmake --build build -j9
 ```
